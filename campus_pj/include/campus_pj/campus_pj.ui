@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>campus_pj</class>
+ <widget class="QWidget" name="campus_pj">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1100</width>
+    <height>607</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <widget class="QStackedWidget" name="stackedWidget">
+   <property name="geometry">
+    <rect>
+     <x>9</x>
+     <y>10</y>
+     <width>1081</width>
+     <height>591</height>
+    </rect>
+   </property>
+   <property name="currentIndex">
+    <number>2</number>
+   </property>
+   <widget class="QWidget" name="widget_home">
+    <widget class="QPushButton" name="pushButton_calibration">
+     <property name="geometry">
+      <rect>
+       <x>70</x>
+       <y>180</y>
+       <width>251</width>
+       <height>231</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Calibration</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_start_process">
+     <property name="geometry">
+      <rect>
+       <x>750</x>
+       <y>180</y>
+       <width>251</width>
+       <height>231</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Start Process</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_currentPosx">
+     <property name="geometry">
+      <rect>
+       <x>410</x>
+       <y>180</y>
+       <width>251</width>
+       <height>231</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Get current posx by tool</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="widget_handeye_calibration">
+    <widget class="QPushButton" name="pushButton_haneye_calibration_calculate">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>530</y>
+       <width>151</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Calculate C2T</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_handeye_pic">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>40</y>
+       <width>641</width>
+       <height>381</height>
+      </rect>
+     </property>
+     <property name="autoFillBackground">
+      <bool>true</bool>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Box</enum>
+     </property>
+     <property name="lineWidth">
+      <number>2</number>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_7">
+     <property name="geometry">
+      <rect>
+       <x>270</x>
+       <y>10</y>
+       <width>121</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Calibration Image</string>
+     </property>
+    </widget>
+    <widget class="QListWidget" name="listWidget_haneye_calibration_b2t">
+     <property name="geometry">
+      <rect>
+       <x>970</x>
+       <y>40</y>
+       <width>111</width>
+       <height>541</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_haneye_calibration_getmatch">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>500</y>
+       <width>151</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Get Match</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_haneye_calibration_findchess">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>470</y>
+       <width>151</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Find Chessboard</string>
+     </property>
+    </widget>
+    <widget class="QListWidget" name="listWidget_haneye_calibration_t2c">
+     <property name="geometry">
+      <rect>
+       <x>850</x>
+       <y>40</y>
+       <width>111</width>
+       <height>541</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_10">
+     <property name="geometry">
+      <rect>
+       <x>1010</x>
+       <y>10</y>
+       <width>31</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>B2T</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_8">
+     <property name="geometry">
+      <rect>
+       <x>740</x>
+       <y>10</y>
+       <width>31</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Log</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_9">
+     <property name="geometry">
+      <rect>
+       <x>890</x>
+       <y>10</y>
+       <width>31</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>T2C</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_haneye_calibration_home">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>560</y>
+       <width>151</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>HOME</string>
+     </property>
+    </widget>
+    <widget class="QTextEdit" name="textEdit_haneye_calibration_log">
+     <property name="geometry">
+      <rect>
+       <x>660</x>
+       <y>40</y>
+       <width>181</width>
+       <height>541</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>8</pointsize>
+      </font>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_haneye_calibration_showimage">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>430</y>
+       <width>151</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Show Image</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="widtet_currentPosx">
+    <widget class="QPushButton" name="pushButton_currentPosx_get">
+     <property name="geometry">
+      <rect>
+       <x>710</x>
+       <y>230</y>
+       <width>201</width>
+       <height>111</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>get tool's X,Y,Z </string>
+     </property>
+    </widget>
+    <widget class="QTextEdit" name="textEdit_currentPosx_log">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>20</y>
+       <width>421</width>
+       <height>531</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_currentPosx_home">
+     <property name="geometry">
+      <rect>
+       <x>960</x>
+       <y>530</y>
+       <width>89</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>HOME</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="widget_process">
+    <widget class="QTextEdit" name="textEdit_process_log">
+     <property name="geometry">
+      <rect>
+       <x>660</x>
+       <y>30</y>
+       <width>421</width>
+       <height>261</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_process_start">
+     <property name="geometry">
+      <rect>
+       <x>560</x>
+       <y>400</y>
+       <width>91</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>start</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_process_start_plat">
+     <property name="geometry">
+      <rect>
+       <x>560</x>
+       <y>450</y>
+       <width>91</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>start_plat</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_process_image_raw">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>640</width>
+       <height>360</height>
+      </rect>
+     </property>
+     <property name="autoFillBackground">
+      <bool>true</bool>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Box</enum>
+     </property>
+     <property name="lineWidth">
+      <number>2</number>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QTextEdit" name="textEdit_log">
+     <property name="geometry">
+      <rect>
+       <x>660</x>
+       <y>310</y>
+       <width>421</width>
+       <height>261</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_widget_process_home">
+     <property name="geometry">
+      <rect>
+       <x>560</x>
+       <y>540</y>
+       <width>89</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>HOME</string>
+     </property>
+    </widget>
+   </widget>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
