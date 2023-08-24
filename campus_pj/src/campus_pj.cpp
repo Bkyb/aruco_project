@@ -301,6 +301,8 @@ void campus_pj::calculateEnd2Base(float& x, float& y, float& z, float& r, float&
     yw = yw_rad * 180.0 / M_PI;
 }
 
+///////////////////////////////////////////HOME////////////////////////////////////////////
+
 void campus_pj::on_pushButton_widget_process_home_clicked()
 {
   QMessageBox mb;
@@ -339,6 +341,9 @@ void campus_pj::on_pushButton_start_process_clicked()
     // ui->label_process_image_raw->setPixmap(QPixmap::fromImage(QImage(showimage.data, showimage.cols, showimage.rows, showimage.step, QImage::Format_RGB888)));
 }
 
+
+///////////////////////////////////////////CALIBRATION////////////////////////////////////////////////////
+
 void campus_pj::on_pushButton_haneye_calibration_home_clicked()
 {
   QMessageBox mb;
@@ -361,6 +366,52 @@ void campus_pj::on_pushButton_haneye_calibration_home_clicked()
   case QMessageBox::Cancel:
     break;
   }
+}
+
+void campus_pj::on_pushButton_haneye_calibration_intrpara_clicked()
+{
+  double ffx, ffy, ccx, ccy;
+
+  QString fxText = ui->textEdit_get_fx->toPlainText();
+  QString fyText = ui->textEdit_get_fy->toPlainText();
+  QString cxText = ui->textEdit_get_cx->toPlainText();
+  QString cyText = ui->textEdit_get_cy->toPlainText();
+
+  ffx = !fxText.isEmpty() ? fxText.toDouble() : intrinsic_parameter[0];
+  ffy = !fyText.isEmpty() ? fyText.toDouble() : intrinsic_parameter[4];
+  ccx = !cxText.isEmpty() ? cxText.toDouble() : intrinsic_parameter[2];
+  ccy = !cyText.isEmpty() ? cyText.toDouble() : intrinsic_parameter[5];
+
+
+  intrinsic_parameter[0] = ffx; intrinsic_parameter[4] = ffy; // 초점거리 x y
+  intrinsic_parameter[2] = ccx; intrinsic_parameter[5] = ccy; // 주점 x y
+
+}
+
+void campus_pj::on_pushButton_haneye_calibration_disto_clicked()
+{
+  double kk1, kk2, kk3, tt1, tt2;
+
+  QString k1Text = ui->textEdit_get_k1->toPlainText();
+  QString k2Text = ui->textEdit_get_k2->toPlainText();
+  QString k3Text = ui->textEdit_get_k3->toPlainText();
+  QString t1Text = ui->textEdit_get_t1->toPlainText();
+  QString t2Text = ui->textEdit_get_t2->toPlainText();
+
+  kk1 = !k1Text.isEmpty() ? k1Text.toDouble() : discoeffs[0];
+  kk2 = !k2Text.isEmpty() ? k2Text.toDouble() : discoeffs[1];
+  kk3 = !k3Text.isEmpty() ? k3Text.toDouble() : discoeffs[4];
+  tt1 = !t1Text.isEmpty() ? t1Text.toDouble() : discoeffs[2];
+  tt2 = !t2Text.isEmpty() ? t2Text.toDouble() : discoeffs[3];
+
+  discoeffs[0] = kk1; discoeffs[1] = kk2; discoeffs[4] = kk3;
+  discoeffs[2] = tt1; discoeffs[3] = tt2;
+
+}
+
+void campus_pj::on_pushButton_haneye_calibration_campara_clicked()
+{
+  color_info_count = 0;
 }
 
 void campus_pj::on_pushButton_haneye_calibration_showimage_clicked()
