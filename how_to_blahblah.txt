@@ -1,0 +1,60 @@
+  cv::Matx33d R_aruco2; //
+  cv::Matx33d R_ee2; //
+  cv::Matx44f T_aruco_out2;//
+   
+  rvec[current_marker_num][1] = -rvec[current_marker_num][1];
+  rvec[current_marker_num][2] = -rvec[current_marker_num][2];
+  cv::Rodrigues(rvec[current_marker_num],R_ee2);// 방향을 엔드이펙터 기준으로 바꾸고 회전행렬로 변환한다.
+  
+  cv::Point3d targetPosition(arucomarker_world_3d_2nd.x, arucomarker_world_3d_2nd.y, arucomarker_world_3d_2nd.z); 
+  //arucomarker_world_3d_2nd는 camera 좌표계로 구한 값에 g2b1 * c2g * (camera 좌표계 값) 한 값
+  cv::Point3d endEffectorPosition = cv::Point3d(0.0, 0.0, -200.0);//mm
+  cv::Matx31d rotatedVector = R_ee2 * cv::Matx31d(endEffectorPosition.x, endEffectorPosition.y, endEffectorPosition.z);
+  cv::Point3d finalPosition(rotatedVector(0, 0) , rotatedVector(1, 0) , rotatedVector(2, 0) );
+  
+  cv::Matx44f T_aruco2(
+        static_cast<float>(R_ee2(0, 0)), static_cast<float>(R_ee2(0, 1)), static_cast<float>(R_ee2(0, 2)), finalPosition.x + arucomarker_world_3d_2nd.x + aruco_3d_center[0],
+        static_cast<float>(R_ee2(1, 0)), static_cast<float>(R_ee2(1, 1)), static_cast<float>(R_ee2(1, 2)), finalPosition.y + arucomarker_world_3d_2nd.y - aruco_3d_center[1],
+        static_cast<float>(R_ee2(2, 0)), static_cast<float>(R_ee2(2, 1)), static_cast<float>(R_ee2(2, 2)), finalPosition.z + arucomarker_world_3d_2nd.z,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+    
+    // 이렇게 구하면 엔드이펙터를 기준으로 타겟과 200mm 떨어진 위치와 방향을 구할 수 있다. 이거를 카메라 기준으로 바꿔주는데...
+    
+    float xxx, yyy, zzz, rrr, ppp, www;
+    
+    cv::Matx44f T_end2camera2 = c2g.inv();
+
+    // end effector의 위치 추출
+    cv::Matx44f T_end2base2 = T_aruco2 * T_end2camera2;
+    xxx = T_end2base2(0, 3);
+    yyy = T_end2base2(1, 3);
+    zzz = T_end2base2(2, 3);// + 250;
+
+    // end effector의 방향 추출
+    cv::Matx33f R_end2base2;
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            R_end2base2(i, j) = T_end2base2(i, j);
+        }
+    }
+    
+    p_rad = std::acos(R_end2base2(2, 2));
+
+    if (R_end2base2(1, 2) / std::sin(p_rad) > 0) {
+        r_rad = std::acos(R_end2base2(0, 2) / std::sin(p_rad));
+    } else {
+        r_rad = -std::acos(R_end2base2(0, 2) / std::sin(p_rad));
+    }
+    if (R_end2base2(2, 1) / std::sin(p_rad) > 0) {
+        yw_rad = std::acos(-R_end2base2(2, 0) / std::sin(p_rad));
+    } else {
+        yw_rad = -std::acos(-R_end2base2(2, 0) / std::sin(p_rad));
+    }
+
+    rrr = r_rad * 180.0 / M_PI;
+    ppp = p_rad * 180.0 / M_PI;
+    www = yw_rad * 180.0 / M_PI;
+    
+    
+   // 이렇게 해서 최종적으로 나오는 xxx, yyy, zzz, rrr, ppp, www 가 카메라를 기준으로 200mm 떨어지면서 .....인 값이다.
