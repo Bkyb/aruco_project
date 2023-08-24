@@ -5,6 +5,7 @@
   rvec[current_marker_num][1] = -rvec[current_marker_num][1];
   rvec[current_marker_num][2] = -rvec[current_marker_num][2];
   cv::Rodrigues(rvec[current_marker_num],R_ee2);// 방향을 엔드이펙터 기준으로 바꾸고 회전행렬로 변환한다.
+  // rvec는 회전벡터 값으로 ux, uy, uz 로 이뤄진 벡터긴 한데 법선벡터는... 잘 모르겠다. 
   
   cv::Point3d targetPosition(arucomarker_world_3d_2nd.x, arucomarker_world_3d_2nd.y, arucomarker_world_3d_2nd.z); 
   //arucomarker_world_3d_2nd는 camera 좌표계로 구한 값에 g2b1 * c2g * (camera 좌표계 값) 한 값
