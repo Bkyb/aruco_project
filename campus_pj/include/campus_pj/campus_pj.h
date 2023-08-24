@@ -165,6 +165,12 @@ private slots:
 
   void on_pushButton_haneye_calibration_home_clicked();
 
+  void on_pushButton_haneye_calibration_intrpara_clicked();
+
+  void on_pushButton_haneye_calibration_disto_clicked();
+
+  void on_pushButton_haneye_calibration_campara_clicked();
+
   void on_pushButton_haneye_calibration_showimage_clicked();
 
   void on_pushButton_haneye_calibration_findchess_clicked();
