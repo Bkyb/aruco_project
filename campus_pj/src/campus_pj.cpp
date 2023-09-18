@@ -221,6 +221,69 @@ void campus_pj::color_camera_info_sub_cb(const sensor_msgs::CameraInfoConstPtr &
     color_info_count++;
 }
 
+pcl::PointCloud<pcl::PointXYZ> campus_pj::depth_to_pointcloud(cv::Mat _depth_image)
+  {
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+
+    int width = _depth_image.cols;
+    int height = _depth_image.rows;
+    cloud.clear();
+    cloud.is_dense = false;
+
+    // Get the camera intrinsics
+    double fx = intrinsic_parameter[0];  // 초점거리
+    double fy = intrinsic_parameter[4];
+    double cx = intrinsic_parameter[2];  // 주점
+    double cy = intrinsic_parameter[5];
+
+    // K = [fx 0 cx;
+    //      0 fy cy;
+    //      0  0  1]
+
+    for (int v = 0; v < height; v++)
+    {
+      for (int u = 0; u < width; u++)
+      {
+        // https://github.com/IntelRealSense/librealsense/blob/5e73f7bb906a3cbec8ae43e888f182cc56c18692/include/librealsense2/rsutil.h#L46
+        // get a data of an element from depth image
+
+        // (u,v): 정규좌표계 (카메라 내부 파라미터의 영향을 제거한 이미지 좌표계)
+        // 
+        uint16_t depth = _depth_image.at<uint16_t>(v, u);
+        // Skip over pixels with a depth value of zero, which is used to indicate no data
+        if(depth==0) continue;
+
+        float x = (u - cx) / fx;
+        float y = (v - cy) / fy;
+ 
+        // // Apply distortion
+        float r2 = x * x + y * y;
+        float f = 1 + discoeffs[0] * r2 + discoeffs[1] * r2 * r2 + discoeffs[4] * r2 * r2 * r2;
+        float ux = x * f + 2 * discoeffs[2] * x * y + discoeffs[3] * (r2 + 2 * x * x);
+        float uy = y * f + 2 * discoeffs[3] * x * y + discoeffs[2] * (r2 + 2 * y * y);
+        x = ux;
+        y = uy;
+
+        pcl::PointXYZ point;
+        point.x = float(depth * x / 1000.0);
+        point.y = float(depth * y / 1000.0);
+        point.z = float(depth / 1000.0);
+
+        
+        // 22, 70, 424
+
+        cloud.push_back(point);
+        // if (v%100 == 0 & u%100 == 0){ 
+        //   ROS_INFO("%f", depth);
+        //   std::cout<<"u : "<<u<<" | v : "<<v<<" | x : "<<point.x<<" | y : "<<point.y<<" | z : "<<point.z<<""<<std::endl;
+        // }
+      }
+    }
+
+    return cloud;
+  }
+
+
 
 void campus_pj::calculateEnd2Base(float& x, float& y, float& z, float& r, float& p, float& yw){
     // 초기 설정
@@ -230,9 +293,9 @@ void campus_pj::calculateEnd2Base(float& x, float& y, float& z, float& r, float&
  
  
 
-    cv::Matx44d camera2end( 0.9995884550916401, -0.0286509350929972, -0.001429813206316577, -31.81668840797239,
-                            0.02858327133778271, 0.9989768060104955, -0.03504764831909967, -99.62247870764079,
-                            0.002432498127190477, 0.03499235589904547, 0.9993846196442566, -2.546049086854508,
+    cv::Matx44d camera2end( 0.997384999638619, -0.0719288009035676, -0.007029231568742221, -27.02221594881259,
+                            0.07161484260894792, 0.9967185601557664, -0.03772832038550635, -100.8828287678684,
+                            0.009719918413633304, 0.03712626350160663, 0.9992633105165232, -11.98360880536063,
                             0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 1.00000000e+00
 
     );
@@ -284,17 +347,24 @@ void campus_pj::calculateEnd2Base(float& x, float& y, float& z, float& r, float&
     }
     
     p_rad = std::acos(R_end2base(2, 2));
+    if (std::sin(p_rad) == 0.0)
+    {
+      r_rad = 0; yw_rad = std::acos(R_end2base(0,0)) - r_rad;
+    }
+    else
+    {
+      if (R_end2base(1, 2) / std::sin(p_rad) > 0) {
+          r_rad = std::acos(R_end2base(0, 2) / std::sin(p_rad));
+      } else {
+          r_rad = -std::acos(R_end2base(0, 2) / std::sin(p_rad));
+      }
+      if (R_end2base(2, 1) / std::sin(p_rad) > 0) {
+          yw_rad = std::acos(-R_end2base(2, 0) / std::sin(p_rad));
+      } else {
+          yw_rad = -std::acos(-R_end2base(2, 0) / std::sin(p_rad));
+      }
+      }
 
-    if (R_end2base(1, 2) / std::sin(p_rad) > 0) {
-        r_rad = std::acos(R_end2base(0, 2) / std::sin(p_rad));
-    } else {
-        r_rad = -std::acos(R_end2base(0, 2) / std::sin(p_rad));
-    }
-    if (R_end2base(2, 1) / std::sin(p_rad) > 0) {
-        yw_rad = std::acos(-R_end2base(2, 0) / std::sin(p_rad));
-    } else {
-        yw_rad = -std::acos(-R_end2base(2, 0) / std::sin(p_rad));
-    }
 
     r = r_rad * 180.0 / M_PI;
     p = p_rad * 180.0 / M_PI;
@@ -386,6 +456,11 @@ void campus_pj::on_pushButton_haneye_calibration_intrpara_clicked()
   intrinsic_parameter[0] = ffx; intrinsic_parameter[4] = ffy; // 초점거리 x y
   intrinsic_parameter[2] = ccx; intrinsic_parameter[5] = ccy; // 주점 x y
 
+  QString text_for_append01;
+
+  text_for_append01.sprintf(" fx = %.5lf, fy = %.5lf, cx = %.5lf, cy = %.5lf) ",intrinsic_parameter[0] , intrinsic_parameter[4], intrinsic_parameter[2], intrinsic_parameter[5]);
+  ui->textEdit_haneye_calibration_log->append(text_for_append01);
+
 }
 
 void campus_pj::on_pushButton_haneye_calibration_disto_clicked()
@@ -407,11 +482,25 @@ void campus_pj::on_pushButton_haneye_calibration_disto_clicked()
   discoeffs[0] = kk1; discoeffs[1] = kk2; discoeffs[4] = kk3;
   discoeffs[2] = tt1; discoeffs[3] = tt2;
 
+  QString text_for_append02;
+
+  text_for_append02.sprintf(" k1 = %.5lf, k2 = %.5lf, t1 = %.5lf, t2 = %.5lf, k3 = %.5lf) ", discoeffs[0], discoeffs[1], discoeffs[2], discoeffs[3], discoeffs[4]);
+  ui->textEdit_haneye_calibration_log->append(text_for_append02);
+
 }
 
 void campus_pj::on_pushButton_haneye_calibration_campara_clicked()
 {
   color_info_count = 0;
+  QString text_for_append03;
+
+  text_for_append03.sprintf(" fx = %.5lf, fy = %.5lf, cx = %.5lf, cy = %.5lf) ",intrinsic_parameter[0] , intrinsic_parameter[4], intrinsic_parameter[2], intrinsic_parameter[5]);
+  ui->textEdit_haneye_calibration_log->append(text_for_append03);
+
+  QString text_for_append04;
+
+  text_for_append04.sprintf(" k1 = %.5lf, k2 = %.5lf, t1 = %.5lf, t2 = %.5lf, k3 = %.5lf) ", discoeffs[0], discoeffs[1], discoeffs[2], discoeffs[3], discoeffs[4]);
+  ui->textEdit_haneye_calibration_log->append(text_for_append04);
 }
 
 void campus_pj::on_pushButton_haneye_calibration_showimage_clicked()
@@ -750,7 +839,7 @@ void campus_pj::on_pushButton_currentPosx_get_clicked()
 
   cv::Matx44d c2t(1.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
                     0.00000000e+00, 1.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-                    0.00000000e+00, 0.00000000e+00, 1.00000000e+00, -1.00000000e+02,
+                    0.00000000e+00, 0.00000000e+00, 1.00000000e+00, -0.93000000e+02,
                     0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 1.00000000e+00);
   QString text_for_append;
 
@@ -901,9 +990,9 @@ QString text;
 
  // markerIds.size() == 5
 
- cv::Matx44f c2g = {0.9995884550916401, -0.0286509350929972, -0.001429813206316577, -31.81668840797239,
-                    0.02858327133778271, 0.9989768060104955, -0.03504764831909967, -99.62247870764079,
-                    0.002432498127190477, 0.03499235589904547, 0.9993846196442566, -2.546049086854508,
+ cv::Matx44f c2g = {0.997384999638619, -0.0719288009035676, -0.007029231568742221, -27.02221594881259,
+                    0.07161484260894792, 0.9967185601557664, -0.03772832038550635, -100.8828287678684,
+                    0.009719918413633304, 0.03712626350160663, 0.9992633105165232, -11.98360880536063,
                     0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 1.00000000e+00};
 
  if(srvGetpose.call(srv))
@@ -1146,10 +1235,9 @@ QString text;
       }
       if(foundDifference) break;
     }
+    // 화면에 마커가 2개 이상 잡힐 때 해결하기 위한 코드
+    // currnet marker num에 현재 대상으로 하는 마커의 순서를 저장한다.
 
-    // if(i == 0 || i == 1) {aruco_2d[0] = markerCorners[0][3].x; aruco_2d[1] = markerCorners[0][3].y;} 
-    // else if(i == 2) {aruco_2d[0] = markerCorners[1][3].x; aruco_2d[1] = markerCorners[1][3].y;} 
-    // else {aruco_2d[0] = markerCorners[2][3].x; aruco_2d[1] = markerCorners[2][3].y;} 
     aruco_2d[0] = markerCorners[current_marker_num][3].x;
     aruco_2d[1] = markerCorners[current_marker_num][3].y;
 
@@ -1233,8 +1321,7 @@ QString text;
    sprintf(buf, "marker_id%06d_world_1st.jpg",index);
    cv::imwrite(buf, image_marker_1st);
 
-
-
+ 
   //  aruco_cal_out = c2b * g2b1 * c2g * aruco_cal_in;
 
    /*cv::Point3f arucomarker_world_3d;
@@ -1252,8 +1339,9 @@ QString text;
    aruco_2d_center[0] = aruco_2d_center[0] / 4.;
    aruco_2d_center[1] = aruco_2d_center[1] / 4.;
 
+   float distance_center = depth_image.at<float>(aruco_2d_center[1], aruco_2d_center[0])*1000;
 
-   rs2_deproject_pixel_to_point(aruco_3d_center, &RS_camera_info_, aruco_2d_center, distance3);
+   rs2_deproject_pixel_to_point(aruco_3d_center, &RS_camera_info_, aruco_2d_center, distance_center);
 
    std::cout << aruco_3d_center[0] << std::endl;
    std::cout << aruco_3d_center[1] << std::endl;
@@ -1334,6 +1422,12 @@ QString text;
     }
     
     p_rad = std::acos(R_end2base2(2, 2));
+    if (std::sin(p_rad) == 0.0)
+    {
+      r_rad = 0; yw_rad = std::acos(R_end2base2(0,0)) - r_rad;
+    }
+    else
+    {
 
     if (R_end2base2(1, 2) / std::sin(p_rad) > 0) {
         r_rad = std::acos(R_end2base2(0, 2) / std::sin(p_rad));
@@ -1345,16 +1439,16 @@ QString text;
     } else {
         yw_rad = -std::acos(-R_end2base2(2, 0) / std::sin(p_rad));
     }
-
+    }
     rrr = r_rad * 180.0 / M_PI;
     ppp = p_rad * 180.0 / M_PI;
     www = yw_rad * 180.0 / M_PI;
     
 
-    // QString text_for_append5;
+    QString text_for_append5;
 
-    //   text_for_append5.sprintf("  <chaangeddd targetpos__> %f, %f, %f, %f, %f, %f",xxx,yyy,zzz,rrr,ppp,www);
-    //   ui->textEdit_process_log->append(text_for_append5);
+      text_for_append5.sprintf("  <chaangeddd targetpos__> %f, %f, %f, %f, %f, %f",xxx,yyy,zzz,rrr,ppp,www);
+      ui->textEdit_process_log->append(text_for_append5);
 
   // calculateEnd2Base(xxx, yyy, zzz, rrr, ppp, www);
   
@@ -1399,6 +1493,12 @@ QString text;
     distance3 = depth_image.at<float>(markerCorners[current_marker_num_2][3].y, markerCorners[current_marker_num_2][3].x)*1000;
    aruco_2d[0] = markerCorners[current_marker_num_2][3].x;
    aruco_2d[1] = markerCorners[current_marker_num_2][3].y;
+
+
+  for(int j = 0 ; j < markerCorners[current_marker_num].size(); j++)
+  {
+    ROS_INFO("%f %f", markerCorners[current_marker_num][j].x, markerCorners[current_marker_num][j].y);
+  }
 
    if(srvGetpose.call(srv))
    {
@@ -1446,7 +1546,7 @@ QString text;
 
    aruco_cal_out = g2b2 * c2g * aruco_cal_in;
 
-   cv::putText(image_marker_2nd, cv::format("world3d = (%.1lf, %.1lf, %.1lf)",aruco_cal_out.val[0], aruco_cal_out.val[1], aruco_cal_out.val[2] ), markerCorners[0][3], cv::FONT_HERSHEY_DUPLEX, 0.45, cv::Scalar(255,255,225), 0);
+   cv::putText(image_marker_2nd, cv::format("world3d = (%.1lf, %.1lf, %.1lf)",aruco_cal_out.val[0], aruco_cal_out.val[1], aruco_cal_out.val[2] ), markerCorners[current_marker_num_2][3], cv::FONT_HERSHEY_DUPLEX, 0.45, cv::Scalar(255,255,225), 0);
 
    sprintf(buf, "marker_id%06d_world_2nd.jpg",index);
    cv::imwrite(buf, image_marker_2nd);
@@ -1472,10 +1572,704 @@ QString text;
     float targetpos5[6] = {coordinate_x, coordinate_y, 150, 0, -180.0, 180.0};
     movel(targetpos5,velx,accx,1,0,0,0,0,0);*/
 
-   index++;
+
+    float aruco_2d_center_2[2] = {0,0}, aruco_3d_center_2[3]= {0,0,0};
+    for(int j = 0; j < markerCorners[current_marker_num].size(); j++)
+    {
+     aruco_2d_center_2[0] += markerCorners[current_marker_num][j].x;
+     aruco_2d_center_2[1] += markerCorners[current_marker_num][j].y;
+    }
+
+    aruco_2d_center_2[0] /= 4.;
+    aruco_2d_center_2[1] /= 4.;
+
+    float distance_center_2 = depth_image.at<float>(aruco_2d_center_2[1], aruco_2d_center_2[0])*1000;
+
+    rs2_deproject_pixel_to_point(aruco_3d_center_2, &RS_camera_info_, aruco_2d_center_2, distance_center_2);
+
+    std::cout << aruco_3d_center_2[0] << std::endl;
+    std::cout << aruco_3d_center_2[1] << std::endl;
+    std::cout << aruco_3d_center_2[2] << std::endl;
+
+    index++;
  }
 }
 
+
+void campus_pj::on_pushButton_process_start_4point_clicked()
+{
+
+
+  QString text;
+  //text_for_append.sprintf("  <mode> %d, <ref> %d, <radius> %7.3f, <blendType> %d",srv.request.mode,srv.request.ref, srv.request.radius, srv.request.blendType);
+  //ui->textEdit_process_log->append(text_for_append.sprintf("  <mode> %d, <ref> %d, <radius> %7.3f, <blendType> %d"));
+  ui->textEdit_process_log->append(text.sprintf("Process Start!"));
+
+
+  float velx[2] = {0,0};
+  float accx[2] = {0,0};
+  float joint_home[6] = {90.0, 0.0, 90.0, 0.0, 90.0, 0.0};
+  float pos_home[6] = {650, 340, 865, 0, -180.0, 180.0};
+
+  ros::NodeHandlePtr node = boost::make_shared<ros::NodeHandle>();
+  ros::ServiceClient srvGetpose = node->serviceClient<dsr_msgs::GetCurrentPose>("/dsr01m1013/system/get_current_pose");
+  dsr_msgs::GetCurrentPose srv;
+
+  srv.request.space_type = 1;
+
+  ros::NodeHandlePtr  node_2 = boost::make_shared<ros::NodeHandle>();
+  ros::ServiceClient srvGetrotm = node_2->serviceClient<dsr_msgs::GetCurrentRotm>("/dsr01m1013/aux_control/get_current_rotm");
+  dsr_msgs::GetCurrentRotm srv2;
+
+  srv2.request.ref = 0;
+
+  ui->textEdit_process_log->append(text.sprintf("Move Home Position"));
+  movej(joint_home,0,0,4.5,0,0,0,0);
+  movel(pos_home,velx,accx,4.5,0,0,0,0,0); // move home position
+  cv::waitKey(1);
+
+  cv::Mat image_aruco = color_image_raw.clone();
+
+  std::vector<int> markerIds;
+  std::vector<int> markerIds_1st; 
+  std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+  cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();
+  cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250); 
+
+  int current_marker_num;
+  int checking_markeids[5] = {-1,-1,-1,-1,-1};
+  int current_marker_num_2;
+  int checking_markeids_2[5] = {-1,-1,-1,-1,-1};
+ 
+
+  ////////////////////////////////////
+  // 1st world view
+  ////////////////////////////////////
+  cv::aruco::detectMarkers(image_aruco, dictionary, markerCorners, markerIds, parameters, rejectedCandidates);
+  // aruco marker definition
+  markerIds_1st = markerIds;
+
+
+  // std::vector<cv::Vec3d> rvecs, tvecs; //
+  // cv::aruco::estimatePoseSingleMarkers(markerCorners, markerLength, A, distCoeffs, rvecs, tvecs); //
+
+  cv::Mat outputImage = color_image_raw.clone();
+  cv::aruco::drawDetectedMarkers(outputImage, markerCorners, markerIds);
+
+  // markerIds.size() == 5
+
+  cv::Matx44f c2g = {0.997384999638619, -0.0719288009035676, -0.007029231568742221, -27.02221594881259,
+                    0.07161484260894792, 0.9967185601557664, -0.03772832038550635, -100.8828287678684,
+                    0.009719918413633304, 0.03712626350160663, 0.9992633105165232, -11.98360880536063,
+                    0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 1.00000000e+00};
+
+  if(srvGetpose.call(srv))
+  {
+      for(int i=0; i<6; i++)
+      {
+        campus_pj::robot_current_pose[i] = srv.response.pos[i];
+      }
+  }
+
+  float data[9];
+  int l = 0;
+
+  if(srvGetrotm.call(srv2))
+  {
+    // std::cout << "size : " << srv2.response.rot_matrix.size() << std::endl;
+      for(int i = 0 ; i < srv2.response.rot_matrix.size() ; i++)
+      {
+        for(int j=0 ; j<3 ; j++)
+        {
+          data[l] = srv2.response.rot_matrix[i].data[j] ;
+          l++;
+        }
+      }
+  }
+  else
+  {
+      ros::shutdown();
+      // return -1;
+  }
+  l = 0;
+  
+ cv::Matx44f g2b = {
+    data[0], data[1], data[2], robot_current_pose[0],
+    data[3], data[4], data[5], robot_current_pose[1],
+    data[6], data[7], data[8], robot_current_pose[2],
+    0, 0, 0, 1};
+
+  std::vector<cv::Point3f> objectPoints;
+
+
+
+ for(int i = 0; i < markerCorners.size(); i++) cv::circle(outputImage, markerCorners[i][3], 2, cv::Scalar(0, 255, 0), 2);
+
+
+ float distance[4], distance2[4], distance3[4];
+ float aruco_2d[4][2]; 
+ float aruco_3d[4][3];
+
+
+ std::vector<std::vector<cv::Point3f>> arucomarkers_camera_3d(4), arucomarkers_world_3d_1st(4), arucomarkers_world_3d_2nd(4), arucomarkers_world_3d_3rd(4);
+
+ std::vector<cv::Matx44f> arucomarkers_Mat, arucomarkers_Mat2, arucomarkers_Mat_3;
+ std::vector<cv::Point3f> arucomarker_3d(4);
+
+ for(int i = 0 ; i < markerCorners.size(); i++)
+ {
+  for(int j = 0; j < 4 ; j ++){
+    distance[j] = depth_image.at<float>(markerCorners[i][j].y, markerCorners[i][j].x)*1000;
+
+    aruco_2d[j][0] = markerCorners[i][j].x; 
+    aruco_2d[j][1] = markerCorners[i][j].y; 
+  //  ROS_INFO("%f", aruco_2d[j][0]);
+    rs2_deproject_pixel_to_point(aruco_3d[j], &RS_camera_info_, aruco_2d[j], distance[j]);
+//  ROS_INFO("%f", aruco_3d[j][0]); ROS_INFO("%f", aruco_3d[j][1]); ROS_INFO("%f", aruco_3d[j][2]);
+ 
+    if (j == 3) cv::putText(outputImage, cv::format("camera3d = (%.1lf, %.1lf, %.1lf)",aruco_3d[j][0], aruco_3d[j][1], aruco_3d[j][2] ), markerCorners[i][3], cv::FONT_HERSHEY_DUPLEX, 0.45, cv::Scalar(255,255,225), 0);
+    
+    arucomarker_3d[j].x = aruco_3d[j][0];
+    arucomarker_3d[j].y = aruco_3d[j][1];
+    arucomarker_3d[j].z = aruco_3d[j][2];
+    // ROS_INFO("dance_m1013 finished !!!!!!!!!!!!!!!!!!!!!");
+    arucomarkers_camera_3d[j].push_back(arucomarker_3d[j]);
+
+  }
+
+ }
+
+ cv::Mat showimage = outputImage.clone();
+ cv::resize(showimage, showimage, cv::Size(640, 360));
+ ui->label_process_image_raw->setPixmap(QPixmap::fromImage(QImage(showimage.data, showimage.cols, showimage.rows, showimage.step, QImage::Format_RGB888)));
+ cv::imwrite("camera_3d_aruco.jpg", outputImage);
+//image
+
+
+ std::vector<cv::Matx41f> aruco_cal_in(4);
+ std::vector<cv::Matx41f> aruco_cal_out(4);
+//  cv::Matx33d Rz1, Ry, Rz2;
+
+ cv::Mat outputImage_world_3d = color_image_raw.clone();
+
+ for(int i = 0 ; i < markerCorners.size() ; i++)
+ {
+  for(int j = 0; j < 4 ; j++){
+
+    aruco_cal_in[j].val[0] = arucomarkers_camera_3d[j][i].x;
+    aruco_cal_in[j].val[1] = arucomarkers_camera_3d[j][i].y;
+    aruco_cal_in[j].val[2] = arucomarkers_camera_3d[j][i].z;
+    aruco_cal_in[j].val[3] = 1.0;
+
+    aruco_cal_out[j] = g2b * c2g * aruco_cal_in[j];
+    if (j == 3){
+      cv::putText(outputImage_world_3d, cv::format("world3d = (%.1lf, %.1lf, %.1lf)",aruco_cal_out[j].val[0], aruco_cal_out[j].val[1], aruco_cal_out[j].val[2] ), markerCorners[i][3], cv::FONT_HERSHEY_DUPLEX, 0.35, cv::Scalar(255,255,225), 0);
+      // cv::drawFrameAxes(outputImage_world_3d, A, distCoeffs, rvecs[i], tvecs[i],100.0, 1); //
+    }
+
+  //  cv::Matx33d Rz1(
+  //     std::cos()
+  //  );
+
+    QString text_for_append000;
+
+    text_for_append000.sprintf("id %d : world3d = (%.5lf, %.5lf, %.5lf) ",markerIds[i], aruco_cal_out[j].val[0], aruco_cal_out[j].val[1], aruco_cal_out[j].val[2] );
+    ui->textEdit_process_log->append(text_for_append000);
+  
+  // here is maaaakrk
+    std::vector<cv::Point3f> arucomarker_world_3d(4);
+    arucomarker_world_3d[j].x = aruco_cal_out[j].val[0];
+    arucomarker_world_3d[j].y = aruco_cal_out[j].val[1];
+    arucomarker_world_3d[j].z = aruco_cal_out[j].val[2];
+    arucomarkers_world_3d_1st[j].push_back(arucomarker_world_3d[j]);
+
+    cv::Matx33d R_aruco; //
+    cv::Matx44f T_aruco_out;//
+
+  // change vector
+  //  rvecs[i][0] = -rvecs[i][0];
+
+    if(j == 3){
+      // rvecs[i][1] = -rvecs[i][1];
+      // rvecs[i][2] = -rvecs[i][2];
+
+      // cv::Rodrigues(rvecs[i],R_aruco);//    
+
+      // cv::Matx44f T_aruco(
+      //     static_cast<float>(R_aruco(0, 0)), static_cast<float>(R_aruco(0, 1)), static_cast<float>(R_aruco(0, 2)), static_cast<float>(tvecs[i](0)),
+      //     static_cast<float>(R_aruco(1, 0)), static_cast<float>(R_aruco(1, 1)), static_cast<float>(R_aruco(1, 2)), static_cast<float>(tvecs[i](1)),
+      //     static_cast<float>(R_aruco(2, 0)), static_cast<float>(R_aruco(2, 1)), static_cast<float>(R_aruco(2, 2)), static_cast<float>(tvecs[i](2)),
+      //     0.0f, 0.0f, 0.0f, 1.0f
+      // );
+
+      // T_aruco_out = g2b * c2g * T_aruco; //      
+      // arucomarkers_Mat.push_back(T_aruco_out);//
+    }
+  
+    /*float coordinate_x, coordinate_y, coordinate_z;
+    coordinate_x = aruco_cal_out.val[0];
+    coordinate_y = aruco_cal_out.val[1];
+    coordinate_z = aruco_cal_out.val[2];
+
+
+    float targetpos[6] = {coordinate_x, coordinate_y, 150, 0, -180.0, 180.0};
+    movel(targetpos,velx,accx,4.5,0,0,0,0,0);*/  
+  }
+   
+ }
+
+ showimage = outputImage_world_3d.clone();
+ cv::resize(showimage, showimage, cv::Size(640, 360));
+ ui->label_process_image_raw->setPixmap(QPixmap::fromImage(QImage(showimage.data, showimage.cols, showimage.rows, showimage.step, QImage::Format_RGB888)));
+
+ cv::imwrite("world_3d_aruco.jpg", outputImage_world_3d);
+
+
+ int index = 0;
+ char buf[255];
+ int size_i = markerCorners.size();
+ ROS_INFO("%d", size_i);
+////////////////////////////////////
+// 1st 소시야
+////////////////////////////////////
+  for(int i = 0 ; i < size_i; i++)
+  {
+    float p_rad, r_rad, yw_rad;
+
+
+    float xx, yy, zz, rr, pp, ww;
+    xx = arucomarkers_world_3d_1st[3][i].x; 
+    yy = arucomarkers_world_3d_1st[3][i].y; 
+    zz = 250.0 + arucomarkers_world_3d_1st[3][i].z; 
+    rr = 0.0; pp = -180.0; ww = 180.0;
+
+    // std::cout << xx << std::endl;
+
+    calculateEnd2Base(xx, yy, zz, rr, pp, ww);
+
+    float targetpos[6] = {xx, yy, zz, rr, pp, ww};
+    movel(targetpos,velx,accx,4.0,0,0,0,0,0);
+
+    cv::waitKey(1);
+    cv::Mat image_marker_1st = color_image_raw.clone();
+    cv::aruco::detectMarkers(image_marker_1st, dictionary, markerCorners, markerIds, parameters, rejectedCandidates);
+
+    // std::vector<cv::Vec3d> rvec, tvec; //
+    // cv::aruco::estimatePoseSingleMarkers(markerCorners, markerLength, A, distCoeffs, rvec, tvec); //
+
+    // QString text_for_append300;
+
+    //   text_for_append300.sprintf(" < ids  > %d, %d, %d, %d, %d",markerIds[0],markerIds[1],markerIds[2], markerIds[3], markerIds[4]);
+    //   ui->textEdit_process_log->append(text_for_append300);
+
+
+
+    // here is problem
+    // aruco_2d[0] = markerCorners[0][3].x;
+    // aruco_2d[1] = markerCorners[0][3].y;
+    
+    bool foundDifference = false;
+
+    for(int j = 0; j < 5; j++)
+    {
+      for(int k = 0; k < 5; k++)
+      {
+        if (markerIds[j] == checking_markeids[k]) {foundDifference = false; break;}
+        if ( k == 4 && markerIds[j] != checking_markeids[k] && markerIds_1st[i] == markerIds[j]) 
+        {
+          foundDifference = true;
+          checking_markeids[i] = markerIds[j];
+          current_marker_num = j; 
+        }        
+      }
+      if(foundDifference) break;
+    } // select marker 
+ 
+    for(int j = 0; j < 4; j++)
+    {
+      aruco_2d[j][0] = markerCorners[current_marker_num][j].x;
+      aruco_2d[j][1] = markerCorners[current_marker_num][j].y;
+
+      if(srvGetpose.call(srv))
+      {
+        for(int i=0; i<6; i++)
+        {
+          campus_pj::robot_current_pose[i] = srv.response.pos[i];
+        }
+      }
+
+      if(srvGetrotm.call(srv2))
+      {
+        // std::cout << "size : " << srv2.response.rot_matrix.size() << std::endl;
+        for(int i = 0 ; i < srv2.response.rot_matrix.size() ; i++)
+        {
+          for(int k=0 ; k<3 ; k++)
+          {
+            data[l] = srv2.response.rot_matrix[i].data[k] ;
+            l++;
+          }
+        }
+      }
+      else
+      {
+        ros::shutdown();
+        // return -1;
+      }
+      l = 0;
+
+      cv::Matx44f g2b1 = {
+        data[0], data[1], data[2], robot_current_pose[0],
+        data[3], data[4], data[5], robot_current_pose[1],
+        data[6], data[7], data[8], robot_current_pose[2],
+        0, 0, 0, 1};
+
+
+      distance2[j] = depth_image.at<float>(markerCorners[current_marker_num][j].y, markerCorners[current_marker_num][j].x)*1000;
+  
+      rs2_deproject_pixel_to_point(aruco_3d[j], &RS_camera_info_, aruco_2d[j], distance2[j]);
+      //  rs2_deproject_pixel_to_point(aruco_3d, &RS_camera_info_, aruco_2d, robot_current_pose[2]-4.47);
+        /*cv::putText(image_marker_1st, cv::format("camera3d = (%.1lf, %.1lf, %.1lf)",aruco_3d[0], aruco_3d[1], aruco_3d[2] ), markerCorners[0][3], cv::FONT_HERSHEY_DUPLEX, 0.45, cv::Scalar(255,255,225), 0);
+        cv::imwrite("aruco_id1_camera.jpg", image_marker_1st);*/
+
+      aruco_cal_in[j].val[0] = aruco_3d[j][0];
+      aruco_cal_in[j].val[1] = aruco_3d[j][1];
+      aruco_cal_in[j].val[2] = aruco_3d[j][2];
+      aruco_cal_in[j].val[3] = 1.0;
+      // aruco_cal_in.val[0] = aruco_3d[j][0];
+      // aruco_cal_in.val[1] = aruco_3d[j][1];
+      // aruco_cal_in.val[2] = aruco_3d[j][2];
+      // aruco_cal_in.val[3] = 1;
+
+      aruco_cal_out[j] = g2b1 * c2g * aruco_cal_in[j];
+
+      std::vector<cv::Point3f> arucomarker_world_3d_2nd(4);
+      arucomarker_world_3d_2nd[j].x = aruco_cal_out[j].val[0];
+      arucomarker_world_3d_2nd[j].y = aruco_cal_out[j].val[1];
+      arucomarker_world_3d_2nd[j].z = aruco_cal_out[j].val[2];
+
+      arucomarkers_world_3d_2nd[j].push_back(arucomarker_world_3d_2nd[j]);
+
+      QString text_for_append001;
+
+      text_for_append001.sprintf("1st id %d : world3d = (%.5lf, %.5lf, %.5lf) ",markerIds[current_marker_num], aruco_cal_out[j].val[0], aruco_cal_out[j].val[1], aruco_cal_out[j].val[2] );
+      ui->textEdit_process_log->append(text_for_append001);
+   
+
+    }
+
+    sprintf(buf, "marker_id%06d_world_1st.jpg",index);
+    cv::imwrite(buf, image_marker_1st);
+
+
+    /*cv::Point3f arucomarker_world_3d;
+    arucomarker_world_3d.x = aruco_cal_out.val[0];
+    arucomarker_world_3d.y = aruco_cal_out.val[1];
+    arucomarker_world_3d.z = aruco_cal_out.val[2];*/
+
+    float aruco_2d_center[2] = {0,0}, aruco_3d_center[3]= {0,0,0};
+    for(int j = 0; j < markerCorners[current_marker_num].size(); j++)
+    {
+      aruco_2d_center[0] += markerCorners[current_marker_num][j].x;
+      aruco_2d_center[1] += markerCorners[current_marker_num][j].y;
+    }
+
+    aruco_2d_center[0] = aruco_2d_center[0] / 4.;
+    aruco_2d_center[1] = aruco_2d_center[1] / 4.;
+
+    float distance_center = depth_image.at<float>(aruco_2d_center[1], aruco_2d_center[0])*1000;
+    rs2_deproject_pixel_to_point(aruco_3d_center, &RS_camera_info_, aruco_2d_center, distance_center);
+
+    std::cout << aruco_3d_center[0] << std::endl;
+    std::cout << aruco_3d_center[1] << std::endl;
+
+// QString text_for_append003;
+
+// text_for_append003.sprintf("id %d : center = (%.5lf, %.5lf, %.5lf) ",markerIds[current_marker_num], aruco_3d_center[0], aruco_3d_center[1], aruco_3d_center[2] );
+// ui->textEdit_process_log->append(text_for_append003);
+
+
+    showimage = image_marker_1st.clone();
+    cv::resize(showimage, showimage, cv::Size(640, 360));
+    ui->label_process_image_raw->setPixmap(QPixmap::fromImage(QImage(showimage.data, showimage.cols, showimage.rows, showimage.step, QImage::Format_RGB888)));
+  
+    Eigen::Vector3d aruco_points[4];
+    Eigen::Vector3d averageNormal(0.0, 0.0, 0.0);
+    cv::Matx33d R_ee2; //
+    cv::Matx44f T_aruco_out2;//
+
+    aruco_points[0] << arucomarkers_world_3d_2nd[0][i].x, arucomarkers_world_3d_2nd[0][i].y, arucomarkers_world_3d_2nd[0][i].z;
+    aruco_points[1] << arucomarkers_world_3d_2nd[1][i].x, arucomarkers_world_3d_2nd[1][i].y, arucomarkers_world_3d_2nd[1][i].z;
+    aruco_points[2] << arucomarkers_world_3d_2nd[2][i].x, arucomarkers_world_3d_2nd[2][i].y, arucomarkers_world_3d_2nd[2][i].z;
+    aruco_points[3] << arucomarkers_world_3d_2nd[3][i].x, arucomarkers_world_3d_2nd[3][i].y, arucomarkers_world_3d_2nd[3][i].z;
+   
+    // for (int i = 0; i < 4; ++i) {
+    //   for (int j = i + 1; j < 4; ++j) {
+    //     for (int k = j + 1; k < 4; ++k) {
+    //         Eigen::Vector3d v1 = aruco_points[j] - aruco_points[i];
+    //         Eigen::Vector3d v2 = aruco_points[k] - aruco_points[i];
+    //         Eigen::Vector3d normal = v1.cross(v2).normalized();
+    //         averageNormal += normal;
+    //     }
+    //   }
+    // }
+
+    // averageNormal /= 4;
+
+
+    Eigen::Vector3d v1 = aruco_points[2] - aruco_points[0];
+    Eigen::Vector3d v2 = aruco_points[3] - aruco_points[0];
+    averageNormal = v1.cross(v2).normalized();
+
+    ROS_INFO("%f   %f   %f",  averageNormal[0],  averageNormal[1],  averageNormal[2]);
+
+    // averageNormal[0] = -averageNormal[0];
+    // averageNormal[1] = -averageNormal[1];
+    // averageNormal[2] = -averageNormal[2];
+
+    // averageNormal.normalize();
+    // Eigen::Vector3d zAxis(0.0, 0.0, 1.0);
+
+    // Eigen::Vector3d rotationAxis = averageNormal.cross(zAxis);
+    // rotationAxis.normalize();
+    // double rotationAngle = std::acos(averageNormal.dot(zAxis));
+
+    // Eigen::AngleAxisd rotation(rotationAngle, rotationAxis);
+    // Eigen::Matrix3d rotationMatrix = rotation.toRotationMatrix();
+
+    // cv::eigen2cv(rotationMatrix, R_ee2);
+
+    cv::Vec3d normal_cv(averageNormal[0], averageNormal[1], averageNormal[2]);
+
+    // Change the sign of the normal
+    normal_cv[0] = -normal_cv[0];
+    normal_cv[1] = -normal_cv[1];
+    normal_cv[2] = -normal_cv[2];
+
+    cv::Vec3d up(0.0, 0.0, -1.0);
+    cv::Vec3d axis = normal_cv.cross(up);
+    double cosine = normal_cv.dot(up);
+    double k = 1.0 / (1.0 + cosine);
+    
+    R_ee2(0, 0) = axis(0) * axis(0) * k + cosine;
+    R_ee2(1, 0) = axis(1) * axis(0) * k - axis(2);
+    R_ee2(2, 0) = axis(2) * axis(0) * k + axis(1);
+    R_ee2(0, 1) = axis(0) * axis(1) * k + axis(2);
+    R_ee2(1, 1) = axis(1) * axis(1) * k + cosine;
+    R_ee2(2, 1) = axis(2) * axis(1) * k - axis(0);
+    R_ee2(0, 2) = axis(0) * axis(2) * k - axis(1);
+    R_ee2(1, 2) = axis(1) * axis(2) * k + axis(0);
+    R_ee2(2, 2) = axis(2) * axis(2) * k + cosine;
+
+
+    // for (int i = 0; i < 3; ++i) {
+    //   for (int j = 0; j < 3; ++j) {
+    //       R_ee2(i, j) = averageNormal(i) * averageNormal(j);
+    //   }
+    // }   
+
+    cv::Point3d targetPosition(arucomarkers_world_3d_2nd[3][i].x, arucomarkers_world_3d_2nd[3][i].y, arucomarkers_world_3d_2nd[3][i].z); 
+    cv::Point3d endEffectorPosition = cv::Point3d(0.0, 0.0, -200.0);//mm
+    cv::Matx31d rotatedVector = R_ee2 * cv::Matx31d(endEffectorPosition.x, endEffectorPosition.y, endEffectorPosition.z);
+    cv::Point3d finalPosition(rotatedVector(0, 0) , rotatedVector(1, 0) , rotatedVector(2, 0) );
+
+
+
+    cv::Matx44f T_aruco2(
+        static_cast<float>(R_ee2(0, 0)), static_cast<float>(R_ee2(0, 1)), static_cast<float>(R_ee2(0, 2)), finalPosition.x + targetPosition.x + aruco_3d_center[0],
+        static_cast<float>(R_ee2(1, 0)), static_cast<float>(R_ee2(1, 1)), static_cast<float>(R_ee2(1, 2)), finalPosition.y + targetPosition.y - aruco_3d_center[1],
+        static_cast<float>(R_ee2(2, 0)), static_cast<float>(R_ee2(2, 1)), static_cast<float>(R_ee2(2, 2)), finalPosition.z + targetPosition.z,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+    
+    
+
+  //  QString text_for_append2;
+
+  //     //  text_for_append2.sprintf("  <T_aruco2 > %f %f %f %f\n %f %f %f %f\n %f %f %f %f",R_aruco(0, 0), R_aruco(0, 1), R_aruco(0, 2),tvecs[i](0), R_aruco(1, 0), R_aruco(1,1), R_aruco(1,2),tvecs[i](1),R_aruco(2,0), R_aruco(2,1), R_aruco(2,2),tvecs[i](2));
+  //     text_for_append2.sprintf("  <T_aruco2 > %f %f %f %f\n %f %f %f %f\n %f %f %f %f",T_aruco2(0, 0), T_aruco2(0, 1), T_aruco2(0, 2),T_aruco2(0, 3), T_aruco2(1, 0), T_aruco2(1,1), T_aruco2(1,2),T_aruco2(1, 3),T_aruco2(2,0), T_aruco2(2,1), T_aruco2(2,2),T_aruco2(2, 3));
+
+  //      ui->textEdit_process_log->append(text_for_append2);
+
+ 
+    float xxx, yyy, zzz, rrr, ppp, www;
+
+    //  xxx = 0.0; yyy = 0.0; zzz = 0.0; rrr = 0.0; ppp = 0.0; www = 0.0;
+  //  xxx = robot_current_pose[0] + aruco_3d_center[0]; 
+  //  yyy = robot_current_pose[1] - aruco_3d_center[1]; 
+  //  zzz = robot_current_pose[2]; 
+
+
+
+
+  //  calculateEnd2Base2(xxx, yyy, zzz, rrr, ppp, www, T_aruco2);
+
+    cv::Matx44f T_end2camera2 = c2g.inv();
+
+    // end effector의 위치 추출
+    cv::Matx44f T_end2base2 = T_aruco2 * T_end2camera2;
+    xxx = T_end2base2(0, 3);
+    yyy = T_end2base2(1, 3);
+    zzz = T_end2base2(2, 3);// + 250;
+
+    // end effector의 방향 추출
+    cv::Matx33f R_end2base2;
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            R_end2base2(i, j) = T_end2base2(i, j);
+        }
+    }
+    
+    p_rad = std::acos(R_end2base2(2, 2));
+    if (std::sin(p_rad) == 0.0)
+    {
+      r_rad = 0; yw_rad = std::acos(R_end2base2(0,0)) - r_rad;
+    }
+    else
+    {
+
+    if (R_end2base2(1, 2) / std::sin(p_rad) > 0) {
+        r_rad = std::acos(R_end2base2(0, 2) / std::sin(p_rad));
+    } else {
+        r_rad = -std::acos(R_end2base2(0, 2) / std::sin(p_rad));
+    }
+    if (R_end2base2(2, 1) / std::sin(p_rad) > 0) {
+        yw_rad = std::acos(-R_end2base2(2, 0) / std::sin(p_rad));
+    } else {
+        yw_rad = -std::acos(-R_end2base2(2, 0) / std::sin(p_rad));
+    }
+    }
+    rrr = r_rad * 180.0 / M_PI;
+    ppp = p_rad * 180.0 / M_PI;
+    www = yw_rad * 180.0 / M_PI;
+    
+
+    QString text_for_append5;
+
+      text_for_append5.sprintf("  <chaangeddd targetpos__> %f, %f, %f, %f, %f, %f",xxx,yyy,zzz,rrr,ppp,www);
+      ui->textEdit_process_log->append(text_for_append5);
+
+  // calculateEnd2Base(xxx, yyy, zzz, rrr, ppp, www);
+  
+  //     QString text_for_append6;
+
+  //     text_for_append6.sprintf("  <chaangeddd targetpos__> %f, %f, %f, %f, %f, %f",xxx,yyy,zzz,rrr,ppp,www);
+  //     ui->textEdit_process_log->append(text_for_append6);
+  //  float targetpos1[6] = {xxx, yyy, zzz, rrr, ppp, www};
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// 소시야ㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑㅑ 222222222222222222222222222222222222222222222
+//////////////////////////////////////////////////////////////////////////////////////////
+
+   float targetpos1[6] = {robot_current_pose[0] + aruco_3d_center[0], robot_current_pose[1] - aruco_3d_center[1], robot_current_pose[2], rr, pp, ww};
+
+  // QString text_for_append4;
+
+  //   text_for_append4.sprintf("  <aruco_3d_center x, y> %f %f ",aruco_3d_center[0],aruco_3d_center[1]);
+  //   ui->textEdit_process_log->append(text_for_append4);
+   movel(targetpos1,velx,accx,4.5,0,0,0,0,0);
+   cv::waitKey(1);
+
+   cv::Mat image_marker_2nd = color_image_raw.clone();
+   cv::aruco::detectMarkers(image_marker_2nd, dictionary, markerCorners, markerIds, parameters, rejectedCandidates);
+
+  bool foundDifference_2 = false;
+
+  for(int j = 0; j < 5; j++)
+  {
+    for(int k = 0; k < 5; k++)
+    {
+      if (markerIds[j] == checking_markeids_2[k]) {foundDifference_2 = false; break;}
+      if ( k == 4 && markerIds[j] != checking_markeids_2[k]) 
+      {
+        foundDifference_2 = true;
+        checking_markeids_2[i] = markerIds[j];
+        current_marker_num_2 = j; 
+      }        
+    }
+    if(foundDifference_2) break;
+  }
+
+  for(int j = 0; j < 4; j++){
+    distance3[j] = depth_image.at<float>(markerCorners[current_marker_num_2][j].y, markerCorners[current_marker_num_2][j].x)*1000;
+    aruco_2d[j][0] = markerCorners[current_marker_num_2][j].x;
+    aruco_2d[j][1] = markerCorners[current_marker_num_2][j].y;
+
+   if(srvGetpose.call(srv))
+   {
+       for(int i=0; i<6; i++)
+       {
+         campus_pj::robot_current_pose[i] = srv.response.pos[i];
+       }
+   }
+
+
+
+  if(srvGetrotm.call(srv2))
+  {
+    // std::cout << "size : " << srv2.response.rot_matrix.size() << std::endl;
+     for(int i = 0 ; i < srv2.response.rot_matrix.size() ; i++)
+     {
+       for(int j=0 ; j<3 ; j++)
+       {
+         data[l] = srv2.response.rot_matrix[i].data[j] ;
+         l++;
+       }
+     }
+  }
+  else
+  {
+      ros::shutdown();
+     // return -1;
+  }
+  l = 0;
+  
+  cv::Matx44f g2b2 = {
+    data[0], data[1], data[2], robot_current_pose[0],
+    data[3], data[4], data[5], robot_current_pose[1],
+    data[6], data[7], data[8], robot_current_pose[2],
+    0, 0, 0, 1};
+
+   rs2_deproject_pixel_to_point(aruco_3d[j], &RS_camera_info_, aruco_2d[j], distance3[j]);
+   /*cv::putText(image_marker_1st, cv::format("camera3d = (%.1lf, %.1lf, %.1lf)",aruco_3d[0], aruco_3d[1], aruco_3d[2] ), markerCorners[0][3], cv::FONT_HERSHEY_DUPLEX, 0.45, cv::Scalar(255,255,225), 0);
+   cv::imwrite("aruco_id1_camera.jpg", image_marker_1st);*/
+
+    aruco_cal_in[j].val[0] = aruco_3d[j][0];
+    aruco_cal_in[j].val[1] = aruco_3d[j][1];
+    aruco_cal_in[j].val[2] = aruco_3d[j][2];
+    aruco_cal_in[j].val[3] = 1.0;
+  
+    QString text_for_append002;
+
+    text_for_append002.sprintf("2nd id %d : world3d = (%.5lf, %.5lf, %.5lf) ",markerIds[current_marker_num_2], aruco_cal_out[j].val[0], aruco_cal_out[j].val[1], aruco_cal_out[j].val[2] );
+    ui->textEdit_process_log->append(text_for_append002);
+    /*float coordinate_x, coordinate_y, coordinate_z;
+
+    coordinate_x = aruco_cal_out.val[0];
+    coordinate_y = aruco_cal_out.val[1];
+    coordinate_z = aruco_cal_out.val[2];
+
+    float targetpos3[6] = {coordinate_x, coordinate_y, 150, 0, -180.0, 180.0};
+    movel(targetpos3,velx,accx,2,0,0,0,0,0);
+
+    float targetpos4[6] = {coordinate_x, coordinate_y, 111.5, 0, -180.0, 180.0};
+    movel(targetpos4,velx,accx,1,0,0,0,0,0);
+
+    cv::waitKey(1);
+
+    float targetpos5[6] = {coordinate_x, coordinate_y, 150, 0, -180.0, 180.0};
+    movel(targetpos5,velx,accx,1,0,0,0,0,0);*/
+
+    aruco_cal_out[j] = g2b2 * c2g * aruco_cal_in[j];
+  }  
+   
+    cv::putText(image_marker_2nd, cv::format("world3d = (%.1lf, %.1lf, %.1lf)",aruco_cal_out[3].val[0], aruco_cal_out[3].val[1], aruco_cal_out[3].val[2] ), markerCorners[0][3], cv::FONT_HERSHEY_DUPLEX, 0.45, cv::Scalar(255,255,225), 0);
+
+    sprintf(buf, "marker_id%06d_world_2nd.jpg",index);
+    cv::imwrite(buf, image_marker_2nd);
+    cv::waitKey(1);
+    index++;
+ }
+}
 
 void campus_pj::on_pushButton_process_start_plat_clicked()
 {
