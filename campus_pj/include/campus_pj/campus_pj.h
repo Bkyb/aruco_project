@@ -11,11 +11,13 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/PointCloud2.h>
 
+#include <Eigen/Dense>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/core.hpp>
 #include <opencv2/core/core.hpp>
 // #include <opencv2/core.hpp>
-#include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv4/opencv2/core/eigen.hpp>
 
 #include <opencv4/opencv2/aruco/charuco.hpp>
 #include <opencv4/opencv2/aruco.hpp>
@@ -47,7 +49,8 @@
 #include <yaml-cpp/yaml.h>
 #include <ros/package.h>
 
-#include <cmath>
+#include <vector>
+
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -122,6 +125,7 @@ public:
   void color_camera_info_sub_cb(const sensor_msgs::CameraInfoConstPtr &depth_camera_info);
   void pointcloud_sub_cb(const sensor_msgs::PointCloud2ConstPtr &pointcloud_raw);
   pcl::PointCloud<pcl::PointXYZRGB> cloudmsg2cloud(sensor_msgs::PointCloud2 cloudmsg);
+    pcl::PointCloud<pcl::PointXYZ> depth_to_pointcloud(cv::Mat _depth_image);
 
   std::vector<cv::Point2f> chessboard_corners;
   std::vector<std::vector<cv::Point2f>> corners, rejected;
@@ -182,6 +186,8 @@ private slots:
   void on_pushButton_process_start_clicked();
 
   void on_pushButton_process_start_plat_clicked();  
+
+  void on_pushButton_process_start_4point_clicked();
   
   void on_pushButton_currentPosx_get_clicked();
 
